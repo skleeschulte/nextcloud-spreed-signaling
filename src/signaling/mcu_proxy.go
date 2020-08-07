@@ -251,9 +251,10 @@ type mcuProxyConnection struct {
 	closed     uint32
 	conn       *websocket.Conn
 
-	connectedSince    time.Time
-	reconnectInterval int64
-	reconnectTimer    *time.Timer
+	connectedSince     time.Time
+	reconnectInterval  int64
+	reconnectTimer     *time.Timer
+	schutdownScheduled uint32
 
 	msgId      int64
 	helloMsgId string
@@ -321,6 +322,10 @@ func (c *mcuProxyConnection) GetStats() *mcuProxyConnectionStats {
 
 func (c *mcuProxyConnection) Load() int64 {
 	return atomic.LoadInt64(&c.load)
+}
+
+func (c *mcuProxyConnection) IsShutdownScheduled() bool {
+	return atomic.LoadUint32(&c.schutdownScheduled) != 0
 }
 
 func (c *mcuProxyConnection) readPump() {
@@ -608,21 +613,26 @@ func (c *mcuProxyConnection) processPayload(msg *ProxyServerMessage) {
 
 func (c *mcuProxyConnection) processEvent(msg *ProxyServerMessage) {
 	event := msg.Event
-	if event.Type == "backend-disconnected" {
+	switch event.Type {
+	case "backend-disconnected":
 		log.Printf("Upstream backend at %s got disconnected, reset MCU objects", c.url)
 		c.clearPublishers()
 		c.clearSubscribers()
 		c.clearCallbacks()
 		// TODO: Should we also reconnect?
 		return
-	} else if event.Type == "backend-connected" {
+	case "backend-connected":
 		log.Printf("Upstream backend at %s is connected", c.url)
 		return
-	} else if event.Type == "update-load" {
+	case "update-load":
 		if proxyDebugMessages {
 			log.Printf("Load of %s now at %d", c.url, event.Load)
 		}
 		atomic.StoreInt64(&c.load, event.Load)
+		return
+	case "shutdown-scheduled":
+		log.Printf("Proxy %s is scheduled to shutdown", c.url)
+		atomic.StoreUint32(&c.schutdownScheduled, 1)
 		return
 	}
 
@@ -948,6 +958,10 @@ func (m *mcuProxy) removePublisher(publisher *mcuProxyPublisher) {
 func (m *mcuProxy) NewPublisher(ctx context.Context, listener McuListener, id string, streamType string) (McuPublisher, error) {
 	connections := m.getSortedConnections()
 	for _, conn := range connections {
+		if conn.IsShutdownScheduled() {
+			continue
+		}
+
 		publisher, err := conn.newPublisher(ctx, listener, id, streamType)
 		if err != nil {
 			log.Printf("Could not create %s publisher for %s on %s: %s", streamType, id, conn.url, err)

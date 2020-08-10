@@ -43,11 +43,11 @@ url = ws://localhost:8188/
 
 # The maximum bitrate per publishing stream (in bits per second).
 # Defaults to 1 mbit/sec.
-maxstreambitrate = 1000000
+#maxstreambitrate = 1048576
 
 # The maximum bitrate per screensharing stream (in bits per second).
 # Default is 2 mbit/sec.
-maxscreenbitrate = 2000000
+#maxscreenbitrate = 2097152
 
 [stats]
 # Comma-separated list of IP addresses that are allowed to access the stats

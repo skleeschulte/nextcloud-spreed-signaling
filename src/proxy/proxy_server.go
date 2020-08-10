@@ -960,7 +960,7 @@ func (s *ProxyServer) DeleteClient(id string, client signaling.McuClient) {
 	delete(s.clients, id)
 	delete(s.clientIds, client.Id())
 
-	if len(s.clients) == 0 {
+	if len(s.clients) == 0 && atomic.LoadUint32(&s.shutdownScheduled) != 0 {
 		go func() {
 			s.shutdownChannel <- true
 		}()

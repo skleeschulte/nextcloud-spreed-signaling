@@ -685,7 +685,7 @@ func (s *ProxyServer) processCommand(ctx context.Context, client *ProxyClient, s
 			return
 		}
 
-		log.Printf("Created publisher %s as %s", publisher.Id(), id)
+		log.Printf("Created %s publisher %s as %s", cmd.StreamType, publisher.Id(), id)
 		session.StorePublisher(ctx, id, publisher)
 		s.StoreClient(id, publisher)
 
@@ -711,7 +711,7 @@ func (s *ProxyServer) processCommand(ctx context.Context, client *ProxyClient, s
 			return
 		}
 
-		log.Printf("Created subscriber %s as %s", subscriber.Id(), id)
+		log.Printf("Created %s subscriber %s as %s", cmd.StreamType, subscriber.Id(), id)
 		session.StoreSubscriber(ctx, id, subscriber)
 		s.StoreClient(id, subscriber)
 
@@ -738,7 +738,7 @@ func (s *ProxyServer) processCommand(ctx context.Context, client *ProxyClient, s
 		s.DeleteClient(cmd.ClientId, client)
 
 		go func() {
-			log.Printf("Closing publisher %s as %s", client.Id(), cmd.ClientId)
+			log.Printf("Closing %s publisher %s as %s", client.StreamType(), client.Id(), cmd.ClientId)
 			client.Close(context.Background())
 		}()
 
@@ -771,7 +771,7 @@ func (s *ProxyServer) processCommand(ctx context.Context, client *ProxyClient, s
 		s.DeleteClient(cmd.ClientId, client)
 
 		go func() {
-			log.Printf("Closing subscriber %s as %s", client.Id(), cmd.ClientId)
+			log.Printf("Closing %s subscriber %s as %s", client.StreamType(), client.Id(), cmd.ClientId)
 			client.Close(context.Background())
 		}()
 
@@ -833,7 +833,7 @@ func (s *ProxyServer) processPayload(ctx context.Context, client *ProxyClient, s
 	mcuClient.SendMessage(ctx, nil, mcuData, func(err error, response map[string]interface{}) {
 		var responseMsg *signaling.ProxyServerMessage
 		if err != nil {
-			log.Printf("Error sending %s to client %s: %s", mcuData, payload.ClientId, err)
+			log.Printf("Error sending %s to %s client %s: %s", mcuData, mcuClient.StreamType(), payload.ClientId, err)
 			responseMsg = message.NewWrappedErrorServerMessage(err)
 		} else {
 			responseMsg = &signaling.ProxyServerMessage{

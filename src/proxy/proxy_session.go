@@ -119,7 +119,7 @@ func (s *ProxySession) SetClient(client *ProxyClient) *ProxyClient {
 func (s *ProxySession) OnIceCandidate(client signaling.McuClient, candidate interface{}) {
 	id := s.proxy.GetClientId(client)
 	if id == "" {
-		log.Printf("Received candidate %+v from unknown client %+v", candidate, client)
+		log.Printf("Received candidate %+v from unknown %s client %s (%+v)", candidate, client.StreamType(), client.Id(), client)
 		return
 	}
 
@@ -152,7 +152,7 @@ func (s *ProxySession) sendMessage(message *signaling.ProxyServerMessage) {
 func (s *ProxySession) OnIceCompleted(client signaling.McuClient) {
 	id := s.proxy.GetClientId(client)
 	if id == "" {
-		log.Printf("Received ice completed event from unknown client %+v", client)
+		log.Printf("Received ice completed event from unknown %s client %s (%+v)", client.StreamType(), client.Id(), client)
 		return
 	}
 

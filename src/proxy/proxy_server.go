@@ -93,8 +93,8 @@ type ProxyServer struct {
 	stopped uint32
 	load    int64
 
-	shutdownChannel    chan bool
-	schutdownScheduled uint32
+	shutdownChannel   chan bool
+	shutdownScheduled uint32
 
 	upgrader websocket.Upgrader
 
@@ -328,7 +328,7 @@ func (s *ProxyServer) updateLoad() {
 	}
 
 	atomic.StoreInt64(&s.load, load)
-	if atomic.LoadUint32(&s.schutdownScheduled) != 0 {
+	if atomic.LoadUint32(&s.shutdownScheduled) != 0 {
 		// Server is scheduled to shutdown, no need to update clients with current load.
 		return
 	}
@@ -388,7 +388,7 @@ func (s *ProxyServer) ShutdownChannel() chan bool {
 }
 
 func (s *ProxyServer) ScheduleShutdown() {
-	if !atomic.CompareAndSwapUint32(&s.schutdownScheduled, 0, 1) {
+	if !atomic.CompareAndSwapUint32(&s.shutdownScheduled, 0, 1) {
 		return
 	}
 
@@ -603,7 +603,7 @@ func (s *ProxyServer) processMessage(client *ProxyClient, data []byte) {
 			}
 
 			log.Printf("Resumed session %s", session.PublicId())
-			if atomic.LoadUint32(&s.schutdownScheduled) != 0 {
+			if atomic.LoadUint32(&s.shutdownScheduled) != 0 {
 				s.sendShutdownScheduled(session)
 			} else {
 				s.sendCurrentLoad(session)
@@ -643,7 +643,7 @@ func (s *ProxyServer) processMessage(client *ProxyClient, data []byte) {
 			},
 		}
 		client.SendMessage(response)
-		if atomic.LoadUint32(&s.schutdownScheduled) != 0 {
+		if atomic.LoadUint32(&s.shutdownScheduled) != 0 {
 			s.sendShutdownScheduled(session)
 		} else {
 			s.sendCurrentLoad(session)
@@ -668,7 +668,7 @@ func (s *ProxyServer) processCommand(ctx context.Context, client *ProxyClient, s
 	cmd := message.Command
 	switch cmd.Type {
 	case "create-publisher":
-		if atomic.LoadUint32(&s.schutdownScheduled) != 0 {
+		if atomic.LoadUint32(&s.shutdownScheduled) != 0 {
 			session.sendMessage(message.NewErrorServerMessage(ShutdownScheduled))
 			return
 		}

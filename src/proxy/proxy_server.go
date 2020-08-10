@@ -820,6 +820,8 @@ func (s *ProxyServer) processPayload(ctx context.Context, client *ProxyClient, s
 		})
 		return
 	case "requestoffer":
+		fallthrough
+	case "sendoffer":
 		mcuData = &signaling.MessageClientMessageData{
 			Type: payload.Type,
 		}

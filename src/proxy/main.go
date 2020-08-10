@@ -150,7 +150,7 @@ loop:
 					proxy.Reload(config)
 				}
 			case syscall.SIGUSR1:
-				log.Printf("Received SIGHUP, scheduling server to shutdown")
+				log.Printf("Received SIGUSR1, scheduling server to shutdown")
 				proxy.ScheduleShutdown()
 			}
 		case <-proxy.ShutdownChannel():

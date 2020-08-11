@@ -251,10 +251,10 @@ type mcuProxyConnection struct {
 	closed     uint32
 	conn       *websocket.Conn
 
-	connectedSince     time.Time
-	reconnectInterval  int64
-	reconnectTimer     *time.Timer
-	schutdownScheduled uint32
+	connectedSince    time.Time
+	reconnectInterval int64
+	reconnectTimer    *time.Timer
+	shutdownScheduled uint32
 
 	msgId      int64
 	helloMsgId string
@@ -325,7 +325,7 @@ func (c *mcuProxyConnection) Load() int64 {
 }
 
 func (c *mcuProxyConnection) IsShutdownScheduled() bool {
-	return atomic.LoadUint32(&c.schutdownScheduled) != 0
+	return atomic.LoadUint32(&c.shutdownScheduled) != 0
 }
 
 func (c *mcuProxyConnection) readPump() {
@@ -472,6 +472,7 @@ func (c *mcuProxyConnection) reconnect() {
 	c.mu.Unlock()
 
 	atomic.StoreInt64(&c.reconnectInterval, int64(initialReconnectInterval))
+	atomic.StoreUint32(&c.shutdownScheduled, 0)
 	if err := c.sendHello(); err != nil {
 		log.Printf("Could not send hello request to %s: %s", c.url, err)
 		c.scheduleReconnect()
@@ -632,7 +633,7 @@ func (c *mcuProxyConnection) processEvent(msg *ProxyServerMessage) {
 		return
 	case "shutdown-scheduled":
 		log.Printf("Proxy %s is scheduled to shutdown", c.url)
-		atomic.StoreUint32(&c.schutdownScheduled, 1)
+		atomic.StoreUint32(&c.shutdownScheduled, 1)
 		return
 	}
 

@@ -809,6 +809,9 @@ type mcuProxy struct {
 
 	mu         sync.RWMutex
 	publishers map[string]*mcuProxyConnection
+
+	publisherWaitersId uint64
+	publisherWaiters   map[uint64]chan bool
 }
 
 func NewMcuProxy(baseUrl string, config *goconf.ConfigFile) (Mcu, error) {
@@ -836,6 +839,8 @@ func NewMcuProxy(baseUrl string, config *goconf.ConfigFile) (Mcu, error) {
 		tokenKey: tokenKey,
 
 		publishers: make(map[string]*mcuProxyConnection),
+
+		publisherWaiters: make(map[uint64]chan bool),
 	}
 
 	for _, u := range strings.Split(baseUrl, " ") {
@@ -956,6 +961,25 @@ func (m *mcuProxy) removePublisher(publisher *mcuProxyPublisher) {
 	delete(m.publishers, publisher.Id())
 }
 
+func (m *mcuProxy) wakeupWaiters() {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, ch := range m.publisherWaiters {
+		ch <- true
+	}
+}
+
+func (m *mcuProxy) addWaiter(ch chan bool) uint64 {
+	id := m.publisherWaitersId + 1
+	m.publisherWaitersId = id
+	m.publisherWaiters[id] = ch
+	return id
+}
+
+func (m *mcuProxy) removeWaiter(id uint64) {
+	delete(m.publisherWaiters, id)
+}
+
 func (m *mcuProxy) NewPublisher(ctx context.Context, listener McuListener, id string, streamType string) (McuPublisher, error) {
 	connections := m.getSortedConnections()
 	for _, conn := range connections {
@@ -972,18 +996,54 @@ func (m *mcuProxy) NewPublisher(ctx context.Context, listener McuListener, id st
 		m.mu.Lock()
 		m.publishers[id+"|"+streamType] = conn
 		m.mu.Unlock()
+		m.wakeupWaiters()
 		return publisher, nil
 	}
 
 	return nil, fmt.Errorf("No MCU connection available")
 }
 
-func (m *mcuProxy) NewSubscriber(ctx context.Context, listener McuListener, publisher string, streamType string) (McuSubscriber, error) {
+func (m *mcuProxy) getPublisherConnection(ctx context.Context, publisher string, streamType string) *mcuProxyConnection {
 	m.mu.RLock()
 	conn := m.publishers[publisher+"|"+streamType]
 	m.mu.RUnlock()
+	if conn != nil {
+		return conn
+	}
+
+	log.Printf("No %s publisher %s found yet, deferring", streamType, publisher)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	conn = m.publishers[publisher+"|"+streamType]
+	if conn != nil {
+		return conn
+	}
+
+	ch := make(chan bool, 1)
+	id := m.addWaiter(ch)
+	defer m.removeWaiter(id)
+
+	for {
+		m.mu.Unlock()
+		select {
+		case <-ch:
+			m.mu.Lock()
+			conn = m.publishers[publisher+"|"+streamType]
+			if conn != nil {
+				return conn
+			}
+		case <-ctx.Done():
+			m.mu.Lock()
+			return nil
+		}
+	}
+}
+
+func (m *mcuProxy) NewSubscriber(ctx context.Context, listener McuListener, publisher string, streamType string) (McuSubscriber, error) {
+	conn := m.getPublisherConnection(ctx, publisher, streamType)
 	if conn == nil {
-		return nil, fmt.Errorf("Unknown publisher")
+		return nil, fmt.Errorf("No %s publisher %s found", streamType, publisher)
 	}
 
 	return conn.newSubscriber(ctx, listener, publisher, streamType)

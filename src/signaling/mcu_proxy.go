@@ -489,7 +489,7 @@ func (c *mcuProxyConnection) removePublisher(publisher *mcuProxyPublisher) {
 	defer c.publishersLock.Unlock()
 
 	delete(c.publishers, publisher.proxyId)
-	delete(c.publisherIds, publisher.id)
+	delete(c.publisherIds, publisher.id+"|"+publisher.StreamType())
 }
 
 func (c *mcuProxyConnection) clearPublishers() {
@@ -762,14 +762,14 @@ func (c *mcuProxyConnection) newPublisher(ctx context.Context, listener McuListe
 	publisher := newMcuProxyPublisher(id, streamType, proxyId, c, listener)
 	c.publishersLock.Lock()
 	c.publishers[proxyId] = publisher
-	c.publisherIds[id] = proxyId
+	c.publisherIds[id+"|"+streamType] = proxyId
 	c.publishersLock.Unlock()
 	return publisher, nil
 }
 
 func (c *mcuProxyConnection) newSubscriber(ctx context.Context, listener McuListener, publisher string, streamType string) (McuSubscriber, error) {
 	c.publishersLock.Lock()
-	id, found := c.publisherIds[publisher]
+	id, found := c.publisherIds[publisher+"|"+streamType]
 	c.publishersLock.Unlock()
 	if !found {
 		return nil, fmt.Errorf("Unknown publisher %s", publisher)

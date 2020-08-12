@@ -958,7 +958,7 @@ func (m *mcuProxy) removePublisher(publisher *mcuProxyPublisher) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	delete(m.publishers, publisher.Id())
+	delete(m.publishers, publisher.id+"|"+publisher.StreamType())
 }
 
 func (m *mcuProxy) wakeupWaiters() {
